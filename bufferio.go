@@ -2,9 +2,9 @@ package bufferio
 
 import (
 	exec "golang.org/x/sys/execabs"
+	"bufio"
 	"os"
 	"bytes"
-	"bufio"
 	"fmt"
 )
 /*
@@ -17,7 +17,7 @@ and each keystroke is being read as byte(s).
 What needs to happen is an instantaneous response
 to each key, including the arrows.
 
-stdin --> buffer --> process --> buffer --> output (chan --> reader --> scanner)
+stdin --> buffer --> process --> buffer --> output (chan)
 
 Process:
 [x] process bytes and escape characters
@@ -37,7 +37,7 @@ func GetInput(output chan string) {
 	// go back to normal afterwards
 	defer func(){exec.Command("stty", "-f", "/dev/tty", "sane").Run()}()
 
-	// stdin --> buffer --> process --> buffer --> output (chan -> reader --> scanner ?)
+	// stdin --> buffer --> process --> buffer --> output (chan)
 
 	reader := bufio.NewScanner(os.Stdin)
 	reader.Split(bufio.ScanBytes)
@@ -47,7 +47,9 @@ func GetInput(output chan string) {
 
 	buffer := make([]byte, 0)
 	cursor := 0
-
+	
+	logN(7)
+	
 	// for each byte
 	for reader.Scan() {
 		// get byte
@@ -55,8 +57,8 @@ func GetInput(output chan string) {
 
 		// add byte
 		buffer = append(buffer, b...)
-		// know index of byte
-		log(b)
+		
+		//log(b)
 		cursor++
 
 		//splitter:
@@ -77,7 +79,9 @@ func GetInput(output chan string) {
 				history = append(history, buffer)
 			}
 			index = len(history)
-			output <- string(buffer)
+			copy := make([]byte, 0)
+			copy = append(copy, buffer...)
+			output <- string(copy)
 			buffer = make([]byte, 0)
 			cursor = 0
 
@@ -89,12 +93,12 @@ func GetInput(output chan string) {
 			// print (without add bytes) left arrow
 		} else if i := bytes.IndexByte(buffer, uint8(127)); i >= 0 {
 			buffer = removeLast(buffer, 2)
-			if cursor > 0 {
-				cursor--
+			if cursor > 1 {
+				cursor -= 2
 				backSpace(1)
 			}
 
-		// else if byte is UP/[]byte{uint8(27), uint8(91), uint8(65)}
+		// else if bytes are UP/[]byte{uint8(27), uint8(91), uint8(65)}
 			// remove UP bytes
 			// remove 3 from cursor
 			// counter printed sequence by printing DOWN
@@ -124,7 +128,7 @@ func GetInput(output chan string) {
 				logN(7) // bell
 			}
 
-		// else if byte is DOWN/[]byte{uint8(27), uint8(91), uint8(66)}
+		// else if bytes are DOWN/[]byte{uint8(27), uint8(91), uint8(66)}
 			// remove DOWN bytes
 			// if index < length of history
 				// remove printed sequence
@@ -133,6 +137,7 @@ func GetInput(output chan string) {
 				// set cursor to length of buffer/string
 				// print buffer
 		} else if i := bytes.Index(buffer, []byte{uint8(27), uint8(91), uint8(66)}); i >= 0 {
+			cursor -= 3
 			buffer = removeLast(buffer, 3)
 			if index < len(history)-1 {
 				backSpace(len(buffer))
@@ -146,6 +151,8 @@ func GetInput(output chan string) {
 			}
 		}
 		// process LEFT/RIGHT arrows?
+		fmt.Println()
+		log(buffer)
 	}
 }
 
